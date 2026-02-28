@@ -1,0 +1,58 @@
+# Architecture definitions for Training vs. Inference comparison
+# CECS 530 Project 8 - Parameterized for reproducibility
+
+# Training-optimized (e.g., A100-class GPU)
+training_optimized:
+  name: "Training-GPU-like"
+  kind: training_opt
+  description: "High peak FLOPs, HBM, optimized for large batches"
+
+  peak_flops_tflops: 300.0      # BF16/FP16
+  mem_bandwidth_gbs: 1550.0
+
+  # Parallelism support (0–1 capability score)
+  data_parallel_friendly: 0.9
+  tensor_parallel_friendly: 0.9
+  pipeline_parallel_friendly: 0.8
+  autoregressive_friendly: 0.4
+
+  # Design notes for report
+  datapath: "Wide matrix units, fused GEMM+activation"
+  memory_hierarchy: "HBM2e, high bandwidth"
+  interconnect: "NVLink-style, high-radix"
+
+# Inference-optimized (e.g., specialized inference accelerator)
+inference_optimized:
+  name: "Inference-Accel-like"
+  kind: inference_opt
+  description: "KV-cache aware, high memory bandwidth, INT4/INT8"
+
+  peak_flops_tflops: 150.0      # Lower FLOPs, better for low-precision
+  mem_bandwidth_gbs: 2200.0     # Emphasis on bandwidth
+
+  data_parallel_friendly: 0.4
+  tensor_parallel_friendly: 0.5
+  pipeline_parallel_friendly: 0.6
+  autoregressive_friendly: 0.9
+
+  datapath: "Mixed-precision units, KV-cache optimized"
+  memory_hierarchy: "Large on-chip cache for weights/KV"
+  interconnect: "Scaled for concurrent streams"
+
+# Unified (compromise design)
+unified:
+  name: "Unified-Compromise"
+  kind: unified
+  description: "Balanced design, inherent tradeoffs"
+
+  peak_flops_tflops: 220.0
+  mem_bandwidth_gbs: 1700.0
+
+  data_parallel_friendly: 0.7
+  tensor_parallel_friendly: 0.7
+  pipeline_parallel_friendly: 0.7
+  autoregressive_friendly: 0.7
+
+  datapath: "General-purpose matrix units"
+  memory_hierarchy: "Moderate HBM + cache"
+  interconnect: "Generic high-bandwidth"

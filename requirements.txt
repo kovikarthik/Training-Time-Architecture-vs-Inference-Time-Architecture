@@ -1,0 +1,10 @@
+# Training vs. Inference Architecture Analysis - CECS 530 Project 8
+# Python 3.9+
+
+# Core
+numpy>=1.21.0
+pyyaml>=6.0
+
+# Optional: for Apple Silicon benchmarks (M4 Pro, Metal)
+# torch>=2.0.0
+# Uncomment above if running benchmark_apple_silicon.py

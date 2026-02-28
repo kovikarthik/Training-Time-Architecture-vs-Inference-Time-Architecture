@@ -1,0 +1,25 @@
+# Experiment specifications - CECS 530 Project 8
+# Reproducible side-by-side workload evaluation
+
+experiments:
+  - name: "roofline_comparison"
+    description: "Roofline-style comparison for all workload x architecture pairs"
+    workloads: [training, inference]
+    architectures: [training_optimized, inference_optimized, unified]
+
+  - name: "parallelism_taxonomy"
+    description: "Parallelism structure analysis"
+    workloads: [training, inference]
+
+  - name: "memory_behavior"
+    description: "Memory footprint and bandwidth pressure"
+    workloads: [training, inference]
+
+  - name: "cost_deployment"
+    description: "Energy and TCO implications"
+    workloads: [training, inference]
+    architectures: [training_optimized, inference_optimized, unified]
+
+output:
+  directory: results
+  format: [json, csv, stdout]

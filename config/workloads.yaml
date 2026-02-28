@@ -1,0 +1,69 @@
+# Workload definitions for Training vs. Inference architecture comparison
+# CECS 530 Project 8 - Parameterized for reproducibility
+
+# Reference model: Transformer-XXL family (~7B params, seq_len 2048)
+# All values are per-token unless noted
+
+training:
+  name: "Transformer-XXL Training"
+  kind: training
+  description: "Large-batch training with data/tensor/pipeline parallelism"
+
+  # Model / algorithmic (per token, forward+backward)
+  flops_per_token: 2.0e12       # ~2 TFLOPs (GEMM, attention, norms, backward)
+  bytes_read_per_token: 200.0e6  # params + activations + optimizer state
+  bytes_written_per_token: 120.0e6 # gradients + activation checkpoints
+
+  # Parallelism configuration
+  global_batch_size: 2048
+  data_parallel_degree: 16
+  tensor_parallel_degree: 8
+  pipeline_stages: 8
+  sequence_length: 2048
+
+  # Training-specific
+  has_gradients: true
+  has_kv_cache: false
+
+  # Precision (for reporting)
+  precision: BF16
+
+  # Operation mix (for workload characterization)
+  operation_mix:
+    matmul: 0.65
+    attention: 0.20
+    layer_norm: 0.05
+    activation: 0.05
+    other: 0.05
+
+inference:
+  name: "Transformer-XXL Inference"
+  kind: inference
+  description: "Autoregressive decoding with KV-cache, small batch"
+
+  # Model / algorithmic (per token, forward only)
+  flops_per_token: 4.0e11       # ~0.4 TFLOPs (inference only)
+  bytes_read_per_token: 80.0e6   # weights + KV-cache reads
+  bytes_written_per_token: 32.0e6 # KV-cache writes + output
+
+  # Parallelism configuration
+  global_batch_size: 16
+  data_parallel_degree: 1
+  tensor_parallel_degree: 2
+  pipeline_stages: 2
+  sequence_length: 2048
+
+  # Inference-specific
+  has_gradients: false
+  has_kv_cache: true
+
+  # Precision (for reporting)
+  precision: INT8
+
+  # Operation mix
+  operation_mix:
+    matmul: 0.60
+    attention: 0.30
+    layer_norm: 0.05
+    activation: 0.03
+    other: 0.02
