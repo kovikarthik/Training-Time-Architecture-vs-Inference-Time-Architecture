@@ -129,12 +129,32 @@ To contextualize architectural performance, we executed a hardware benchmark on 
 
 ## 6. Cost and Deployment Implications (Goal 5)
 
+Using our parameterized analytical framework, we modeled the 3-year Total Cost of Ownership (TCO) and Energy-Delay Product (EDP) for a fleet running the Llama 3 8B model. 
+
+### 6.1 Energy-Delay Product (EDP)
+EDP perfectly captures the balance between latency and power consumption. Lower is better.
+
+| Architecture | Workload | Energy/Token (mJ) | EDP (µJ·s) | Efficiency vs Baseline |
+|--------------|----------|-------------------|------------|------------------------|
+| Training-GPU (H100) | Inference | 160.98 | 37.02 | Baseline |
+| Unified-GPU (L40S) | Inference | 312.08 | 278.27 | 7.5x Worse |
+| Inference-ASIC | Inference | 3.85 | 0.20 | **185x Better** |
+
+### 6.2 3-Year Total Cost of Ownership
+Assuming a $0.10/kWh electricity cost and max roofline utilization over 3 years:
+
+| Architecture | Target | Cost per 1M Tokens | Impact |
+|--------------|--------|---------------------|--------|
+| Training-GPU (H100) | Inference | $0.0774 | Baseline |
+| Unified-GPU (L40S) | Inference | $0.1029 | 33% more expensive |
+| Inference-ASIC | Inference | $0.0017 | **45x cheaper** |
+
 Attempting to run a unified architecture fleet (e.g., L40S or generic GPUs) results in unacceptable TCO. A unified chip compromises memory bandwidth to gain moderate FLOPs, resulting in a system that is slightly too slow for training and too power-hungry for inference.
 
 **Deployment Recommendation:**
 Enterprise fleets must bifurcate. 
 1. **Training Centers:** Built with dense, HBM-equipped monolithic accelerators (H100/TPUv5p).
-2. **Inference Edge/Cloud:** Deployed using low-precision, high-SRAM ASICs (Groq-style) or memory-bandwidth extreme unities (LPDDR5x extreme). Because inference consumes over 80% of life-cycle energy costs per model, specialized inference chips that minimize the Energy per Token metric directly control the profitability of the service.
+2. **Inference Edge/Cloud:** Deployed using low-precision, high-SRAM ASICs (Groq-style). Because inference consumes over 80% of life-cycle energy costs per model, specialized inference chips that minimize the Energy per Token metric directly control the profitability of the service.
 
 ---
 

@@ -9,14 +9,13 @@ training:
   kind: training
   description: "Large-batch pre-training with data, tensor, and pipeline parallelism"
 
-  # Model / algorithmic (per token, forward+backward)
-  # Roughly 6 * P FLOPs per token for training = 6 * 8e9 = 48 GFLOPs = 4.8e10
-  flops_per_token: 4.8e10
-  # Bytes read: params (BF16 = 16GB), optimizer states (FP32 = 32GB), activations. 
-  # High memory capacity and bandwidth required.
-  bytes_read_per_token: 450.0e6
-  # Bytes written: gradients, updated parameters, checkpointed activations.
-  bytes_written_per_token: 350.0e6
+  model:
+    hidden_size: 4096
+    intermediate_size: 14336
+    num_layers: 32
+    num_attention_heads: 32
+    num_key_value_heads: 8
+    vocab_size: 128256
 
   # Parallelism configuration
   global_batch_size: 4096
@@ -45,13 +44,13 @@ inference:
   kind: inference
   description: "Autoregressive generation with KV-cache streaming"
 
-  # Model / algorithmic (per token, forward only)
-  # Roughly 2 * P FLOPs per token = 2 * 8e9 = 16 GFLOPs = 1.6e10
-  flops_per_token: 1.6e10
-  # Bytes read: INT8 params stream + KV cache stream per token
-  bytes_read_per_token: 150.0e6
-  # Bytes written: KV cache update + output token
-  bytes_written_per_token: 45.0e6
+  model:
+    hidden_size: 4096
+    intermediate_size: 14336
+    num_layers: 32
+    num_attention_heads: 32
+    num_key_value_heads: 8
+    vocab_size: 128256
 
   # Parallelism configuration
   global_batch_size: 16     # Interactive, low latency

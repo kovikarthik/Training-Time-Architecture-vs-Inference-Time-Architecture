@@ -26,6 +26,9 @@ class Architecture:
 
     peak_flops_tflops: float
     mem_bandwidth_gbs: float
+    
+    tdp_watts: float
+    cost_usd: float
 
     data_parallel_friendly: float
     tensor_parallel_friendly: float
@@ -58,6 +61,8 @@ def load_architecture_from_config(
         kind=a["kind"],
         peak_flops_tflops=float(a["peak_flops_tflops"]),
         mem_bandwidth_gbs=float(a["mem_bandwidth_gbs"]),
+        tdp_watts=float(a.get("tdp_watts", 400.0)),
+        cost_usd=float(a.get("cost_usd", 20000.0)),
         data_parallel_friendly=float(a["data_parallel_friendly"]),
         tensor_parallel_friendly=float(a["tensor_parallel_friendly"]),
         pipeline_parallel_friendly=float(a["pipeline_parallel_friendly"]),

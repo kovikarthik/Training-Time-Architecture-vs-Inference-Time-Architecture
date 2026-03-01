@@ -47,6 +47,9 @@ def run_roofline_comparison(config_dir: Path, workloads: list, architectures: li
                 "memory_bound_tokens_per_s": ev.roofline_mem_bound_toks_per_s,
                 "bottleneck": ev.bottleneck,
                 "effective_throughput_tokens_per_s": ev.effective_throughput_toks_per_s,
+                "energy_per_token_mj": ev.energy_per_token_mj,
+                "edp_uj_s": ev.edp_uj_s,
+                "cost_per_million_tokens_usd": ev.cost_per_million_tokens_usd,
             })
     return results
 

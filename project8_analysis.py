@@ -6,31 +6,68 @@ WorkloadType = Literal["training", "inference"]
 
 
 @dataclass
+class ModelArchitecture:
+    """Hyperparameters of the target LLM."""
+    hidden_size: int
+    intermediate_size: int
+    num_layers: int
+    num_attention_heads: int
+    num_key_value_heads: int
+    vocab_size: int
+
+    @property
+    def total_parameters(self) -> int:
+        emb = self.vocab_size * self.hidden_size
+        qkv_size = self.hidden_size + 2 * (self.hidden_size * self.num_key_value_heads // self.num_attention_heads)
+        attn = self.hidden_size * qkv_size + self.hidden_size * self.hidden_size
+        mlp = 3 * self.hidden_size * self.intermediate_size
+        norm = 2 * self.hidden_size
+        layer_params = attn + mlp + norm
+        return emb + self.num_layers * layer_params + emb
+
+@dataclass
 class Workload:
-    """
-    Simple analytical description of a transformer-style workload.
-
-    All rates are in 'per token' unless otherwise noted.
-    """
-
     name: str
     kind: WorkloadType
+    model: ModelArchitecture
 
-    # Model / algorithmic properties
-    flops_per_token: float          # total floating-point ops per token
-    bytes_read_per_token: float     # bytes read from memory per token
-    bytes_written_per_token: float  # bytes written to memory per token
-
-    # Parallelism / execution configuration
     global_batch_size: int
     data_parallel_degree: int
     tensor_parallel_degree: int
     pipeline_stages: int
 
-    # Training-only knobs
     sequence_length: int
     has_gradients: bool
     has_kv_cache: bool
+    precision: str = "FP16"
+
+    @property
+    def precision_bytes(self) -> int:
+        return 1 if self.precision == "INT8" else 2
+
+    @property
+    def flops_per_token(self) -> float:
+        p = self.model.total_parameters
+        return 6.0 * p if self.has_gradients else 2.0 * p
+
+    @property
+    def bytes_read_per_token(self) -> float:
+        p = self.model.total_parameters
+        if self.has_gradients:
+            act_bytes = 34 * self.model.hidden_size * self.model.num_layers * self.sequence_length / self.global_batch_size
+            return p * (self.precision_bytes + 8) / self.global_batch_size + act_bytes
+        else:
+            kv_size_per_token = 2 * self.model.num_layers * (self.model.hidden_size * self.model.num_key_value_heads // self.model.num_attention_heads) * self.precision_bytes
+            return p * self.precision_bytes / self.global_batch_size + kv_size_per_token * self.sequence_length
+
+    @property
+    def bytes_written_per_token(self) -> float:
+        p = self.model.total_parameters
+        if self.has_gradients:
+            return p * (self.precision_bytes + 8) / self.global_batch_size
+        else:
+            kv_size_per_token = 2 * self.model.num_layers * (self.model.hidden_size * self.model.num_key_value_heads // self.model.num_attention_heads) * self.precision_bytes
+            return kv_size_per_token + self.model.hidden_size * self.precision_bytes
 
 
 @dataclass
@@ -48,6 +85,8 @@ class Architecture:
 
     peak_flops_tflops: float
     mem_bandwidth_gbs: float
+    tdp_watts: float
+    cost_usd: float
 
     # Parallelism support (normalized 0–1, rough capability scores)
     data_parallel_friendly: float
@@ -65,6 +104,11 @@ class EvaluationResult:
     roofline_flops_bound_toks_per_s: float
     roofline_mem_bound_toks_per_s: float
     bottleneck: Literal["compute", "memory"]
+    
+    # New metrics for Phase 4
+    energy_per_token_mj: float
+    edp_uj_s: float
+    cost_per_million_tokens_usd: float
 
 
 def arithmetic_intensity(workload: Workload) -> float:
@@ -97,8 +141,35 @@ def roofline_throughput(workload: Workload, arch: Architecture) -> EvaluationRes
 
     if compute_bound_toks_per_s < mem_bound_toks_per_s:
         bottleneck: Literal["compute", "memory"] = "compute"
+        actual_toks_per_s = compute_bound_toks_per_s
     else:
         bottleneck = "memory"
+        actual_toks_per_s = mem_bound_toks_per_s
+
+    # Phase 4 Metrics: Energy and Cost
+    # Assuming baseline 40% power + up to 60% based on utilization
+    # Since we are assuming roofline limits, utilization of wildcard resource is 1.0
+    utilization = 1.0 # simplified model
+    power_watts = arch.tdp_watts * (0.4 + 0.6 * utilization)
+    
+    # Energy per token in milliJoules
+    time_per_token_s = 1.0 / actual_toks_per_s
+    energy_per_token_j = power_watts * time_per_token_s
+    energy_per_token_mj = energy_per_token_j * 1000.0
+    
+    # Energy-Delay Product (EDP): Energy (J) * Delay (s)
+    edp_uj_s = (energy_per_token_j * 1e6) * time_per_token_s
+    
+    # TCO over 3 years: assuming $0.10/kWh
+    years = 3
+    hours = years * 8760
+    # $0.10 per kWh
+    electricity_cost = (power_watts / 1000) * hours * 0.10
+    total_tco = arch.cost_usd + electricity_cost
+    
+    # Total tokens this chip can process in 3 years at peak roofline 
+    total_tokens_3yrs = actual_toks_per_s * hours * 3600
+    cost_per_million_tokens_usd = (total_tco / total_tokens_3yrs) * 1e6
 
     return EvaluationResult(
         workload=workload,
@@ -107,6 +178,9 @@ def roofline_throughput(workload: Workload, arch: Architecture) -> EvaluationRes
         roofline_flops_bound_toks_per_s=compute_bound_toks_per_s,
         roofline_mem_bound_toks_per_s=mem_bound_toks_per_s,
         bottleneck=bottleneck,
+        energy_per_token_mj=energy_per_token_mj,
+        edp_uj_s=edp_uj_s,
+        cost_per_million_tokens_usd=cost_per_million_tokens_usd,
     )
 
 
@@ -125,6 +199,9 @@ def pretty_print_result(result: EvaluationResult) -> None:
         f"{result.roofline_mem_bound_toks_per_s:10.2f}"
     )
     print(f"  Bottleneck         : {result.bottleneck}")
+    print(f"  Energy/token (mJ)  : {result.energy_per_token_mj:10.2f}")
+    print(f"  EDP (µJ·s)         : {result.edp_uj_s:10.2f}")
+    print(f"  TCO Cost / 1M toks : ${result.cost_per_million_tokens_usd:9.4f}")
     print()
 
 
@@ -135,12 +212,19 @@ def example_scenarios() -> None:
       - Inference: single-stream autoregressive with KV cache
     """
 
+    llama3_8b_arch = ModelArchitecture(
+        hidden_size=4096,
+        intermediate_size=14336,
+        num_layers=32,
+        num_attention_heads=32,
+        num_key_value_heads=8,
+        vocab_size=128256
+    )
+
     training_workload = Workload(
         name="LLM-8B Training (BF16)",
         kind="training",
-        flops_per_token=4.8e10,  # ~48 GFLOPs / token
-        bytes_read_per_token=450.0e6,
-        bytes_written_per_token=350.0e6,
+        model=llama3_8b_arch,
         global_batch_size=4096,
         data_parallel_degree=32,
         tensor_parallel_degree=4,
@@ -148,14 +232,13 @@ def example_scenarios() -> None:
         sequence_length=4096,
         has_gradients=True,
         has_kv_cache=False,
+        precision="BF16"
     )
 
     inference_workload = Workload(
         name="LLM-8B Inference (INT8/KV-cache)",
         kind="inference",
-        flops_per_token=1.6e10,  # ~16 GFLOPs / token
-        bytes_read_per_token=150.0e6,  
-        bytes_written_per_token=45.0e6, 
+        model=llama3_8b_arch,
         global_batch_size=16, 
         data_parallel_degree=1,
         tensor_parallel_degree=2,
@@ -163,6 +246,7 @@ def example_scenarios() -> None:
         sequence_length=4096,
         has_gradients=False,
         has_kv_cache=True,
+        precision="INT8"
     )
 
     # Architecture 1: Training-optimized GPU (e.g., H100-class)
@@ -171,6 +255,8 @@ def example_scenarios() -> None:
         kind="training_opt",
         peak_flops_tflops=989.0,  # BF16
         mem_bandwidth_gbs=3350.0,
+        tdp_watts=700.0,
+        cost_usd=30000.0,
         data_parallel_friendly=0.9,
         tensor_parallel_friendly=0.9,
         pipeline_parallel_friendly=0.8,
@@ -183,6 +269,8 @@ def example_scenarios() -> None:
         kind="inference_opt",
         peak_flops_tflops=400.0,
         mem_bandwidth_gbs=15000.0, # 15 TB/s SRAM bandwidth
+        tdp_watts=75.0,
+        cost_usd=3000.0,
         data_parallel_friendly=0.2,
         tensor_parallel_friendly=0.6,
         pipeline_parallel_friendly=0.8,
@@ -195,6 +283,8 @@ def example_scenarios() -> None:
         kind="unified",
         peak_flops_tflops=733.0,
         mem_bandwidth_gbs=864.0,
+        tdp_watts=350.0,
+        cost_usd=10000.0,
         data_parallel_friendly=0.7,
         tensor_parallel_friendly=0.6,
         pipeline_parallel_friendly=0.7,
