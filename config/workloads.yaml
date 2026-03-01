@@ -1,31 +1,35 @@
 # Workload definitions for Training vs. Inference architecture comparison
 # CECS 530 Project 8 - Parameterized for reproducibility
 
-# Reference model: Transformer-XXL family (~7B params, seq_len 2048)
-# All values are per-token unless noted
+# Reference model: Modern ~8B Parameter LLM (e.g. Llama 3 8B)
+# Sequence length: 4096. All values are per-token unless noted.
 
 training:
-  name: "Transformer-XXL Training"
+  name: "LLM-8B Training (BF16)"
   kind: training
-  description: "Large-batch training with data/tensor/pipeline parallelism"
+  description: "Large-batch pre-training with data, tensor, and pipeline parallelism"
 
   # Model / algorithmic (per token, forward+backward)
-  flops_per_token: 2.0e12       # ~2 TFLOPs (GEMM, attention, norms, backward)
-  bytes_read_per_token: 200.0e6  # params + activations + optimizer state
-  bytes_written_per_token: 120.0e6 # gradients + activation checkpoints
+  # Roughly 6 * P FLOPs per token for training = 6 * 8e9 = 48 GFLOPs = 4.8e10
+  flops_per_token: 4.8e10
+  # Bytes read: params (BF16 = 16GB), optimizer states (FP32 = 32GB), activations. 
+  # High memory capacity and bandwidth required.
+  bytes_read_per_token: 450.0e6
+  # Bytes written: gradients, updated parameters, checkpointed activations.
+  bytes_written_per_token: 350.0e6
 
   # Parallelism configuration
-  global_batch_size: 2048
-  data_parallel_degree: 16
-  tensor_parallel_degree: 8
-  pipeline_stages: 8
-  sequence_length: 2048
+  global_batch_size: 4096
+  data_parallel_degree: 32
+  tensor_parallel_degree: 4
+  pipeline_stages: 4
+  sequence_length: 4096
 
   # Training-specific
   has_gradients: true
   has_kv_cache: false
 
-  # Precision (for reporting)
+  # Precision
   precision: BF16
 
   # Operation mix (for workload characterization)
@@ -37,21 +41,24 @@ training:
     other: 0.05
 
 inference:
-  name: "Transformer-XXL Inference"
+  name: "LLM-8B Inference (INT8/KV-cache)"
   kind: inference
-  description: "Autoregressive decoding with KV-cache, small batch"
+  description: "Autoregressive generation with KV-cache streaming"
 
   # Model / algorithmic (per token, forward only)
-  flops_per_token: 4.0e11       # ~0.4 TFLOPs (inference only)
-  bytes_read_per_token: 80.0e6   # weights + KV-cache reads
-  bytes_written_per_token: 32.0e6 # KV-cache writes + output
+  # Roughly 2 * P FLOPs per token = 2 * 8e9 = 16 GFLOPs = 1.6e10
+  flops_per_token: 1.6e10
+  # Bytes read: INT8 params stream + KV cache stream per token
+  bytes_read_per_token: 150.0e6
+  # Bytes written: KV cache update + output token
+  bytes_written_per_token: 45.0e6
 
   # Parallelism configuration
-  global_batch_size: 16
+  global_batch_size: 16     # Interactive, low latency
   data_parallel_degree: 1
-  tensor_parallel_degree: 2
-  pipeline_stages: 2
-  sequence_length: 2048
+  tensor_parallel_degree: 2 # Typical for 8B inference
+  pipeline_stages: 1
+  sequence_length: 4096
 
   # Inference-specific
   has_gradients: false

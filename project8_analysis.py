@@ -130,79 +130,75 @@ def pretty_print_result(result: EvaluationResult) -> None:
 
 def example_scenarios() -> None:
     """
-    Example characterization for a single LLM family:
+    Example characterization for a modern Llama 3 8B-class model:
       - Training: data-parallel, large batch, gradients + activations
       - Inference: single-stream autoregressive with KV cache
-
-    Numbers are illustrative, not precise.
     """
 
-    # Rough per-token numbers for a medium transformer at BF16 / FP16
-    # These are intentionally simple for the project writeup.
     training_workload = Workload(
-        name="Transformer-XXL Training",
+        name="LLM-8B Training (BF16)",
         kind="training",
-        flops_per_token=2.0e12,  # 2 TFLOPs / token (forward + backward)
-        bytes_read_per_token=200.0e6,  # params + activations + gradients
-        bytes_written_per_token=120.0e6,
-        global_batch_size=2048,
-        data_parallel_degree=16,
-        tensor_parallel_degree=8,
-        pipeline_stages=8,
-        sequence_length=2048,
+        flops_per_token=4.8e10,  # ~48 GFLOPs / token
+        bytes_read_per_token=450.0e6,
+        bytes_written_per_token=350.0e6,
+        global_batch_size=4096,
+        data_parallel_degree=32,
+        tensor_parallel_degree=4,
+        pipeline_stages=4,
+        sequence_length=4096,
         has_gradients=True,
         has_kv_cache=False,
     )
 
     inference_workload = Workload(
-        name="Transformer-XXL Inference",
+        name="LLM-8B Inference (INT8/KV-cache)",
         kind="inference",
-        flops_per_token=4.0e11,  # ~0.4 TFLOPs / token inference-only
-        bytes_read_per_token=80.0e6,  # weights + KV cache
-        bytes_written_per_token=32.0e6,  # KV cache + output token
-        global_batch_size=16,  # small batch (interactive)
+        flops_per_token=1.6e10,  # ~16 GFLOPs / token
+        bytes_read_per_token=150.0e6,  
+        bytes_written_per_token=45.0e6, 
+        global_batch_size=16, 
         data_parallel_degree=1,
         tensor_parallel_degree=2,
-        pipeline_stages=2,
-        sequence_length=2048,
+        pipeline_stages=1,
+        sequence_length=4096,
         has_gradients=False,
         has_kv_cache=True,
     )
 
-    # Architecture 1: Training-optimized GPU (e.g., A100-class)
+    # Architecture 1: Training-optimized GPU (e.g., H100-class)
     training_gpu = Architecture(
-        name="Training-GPU-like",
+        name="Training-GPU (H100-class)",
         kind="training_opt",
-        peak_flops_tflops=300.0,  # at BF16/FP16
-        mem_bandwidth_gbs=1550.0,
+        peak_flops_tflops=989.0,  # BF16
+        mem_bandwidth_gbs=3350.0,
         data_parallel_friendly=0.9,
         tensor_parallel_friendly=0.9,
         pipeline_parallel_friendly=0.8,
         autoregressive_friendly=0.4,
     )
 
-    # Architecture 2: Inference-optimized accelerator (e.g., KV-cache aware, INT4)
+    # Architecture 2: Inference-optimized accelerator (e.g., massive SRAM ASIC)
     inference_accel = Architecture(
-        name="Inference-Accel-like",
+        name="Inference-ASIC (SRAM-heavy)",
         kind="inference_opt",
-        peak_flops_tflops=150.0,  # lower raw FLOPs but good for low-precision
-        mem_bandwidth_gbs=2200.0,  # very high effective bandwidth
-        data_parallel_friendly=0.4,
-        tensor_parallel_friendly=0.5,
-        pipeline_parallel_friendly=0.6,
-        autoregressive_friendly=0.9,
+        peak_flops_tflops=400.0,
+        mem_bandwidth_gbs=15000.0, # 15 TB/s SRAM bandwidth
+        data_parallel_friendly=0.2,
+        tensor_parallel_friendly=0.6,
+        pipeline_parallel_friendly=0.8,
+        autoregressive_friendly=1.0,
     )
 
-    # Optional: unified architecture to discuss compromises
+    # Optional: unified architecture to discuss compromises (e.g. L40S)
     unified_arch = Architecture(
-        name="Unified-Compromise",
+        name="Unified-GPU (L40S-class)",
         kind="unified",
-        peak_flops_tflops=220.0,
-        mem_bandwidth_gbs=1700.0,
+        peak_flops_tflops=733.0,
+        mem_bandwidth_gbs=864.0,
         data_parallel_friendly=0.7,
-        tensor_parallel_friendly=0.7,
+        tensor_parallel_friendly=0.6,
         pipeline_parallel_friendly=0.7,
-        autoregressive_friendly=0.7,
+        autoregressive_friendly=0.6,
     )
 
     for arch in (training_gpu, inference_accel, unified_arch):

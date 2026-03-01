@@ -49,7 +49,7 @@ class Workload:
 
     @property
     def arithmetic_intensity(self) -> float:
-        """FLOPs per byte (AI)."""
+        """FLOPs per byte (arithmetic intensity)."""
         bt = self.bytes_total_per_token
         return self.flops_per_token / bt if bt > 0 else float("inf")
 

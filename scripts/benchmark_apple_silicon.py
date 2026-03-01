@@ -25,8 +25,8 @@ def run_benchmark() -> dict:
     device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
     results = {"device": str(device), "runs": []}
 
-    # Matrix sizes: representative of transformer blocks
-    for n in [1024, 2048, 4096]:
+    # Matrix sizes: representative of transformer blocks (e.g. Llama 3 8B has hidden size 4096)
+    for n in [1024, 2048, 4096, 8192]:  # Added 8192 for FFN size proxy
         a = torch.randn(n, n, dtype=torch.float32, device=device)
         b = torch.randn(n, n, dtype=torch.float32, device=device)
 

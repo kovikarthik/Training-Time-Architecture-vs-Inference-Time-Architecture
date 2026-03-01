@@ -1,14 +1,14 @@
 # Architecture definitions for Training vs. Inference comparison
 # CECS 530 Project 8 - Parameterized for reproducibility
 
-# Training-optimized (e.g., A100-class GPU)
+# Training-optimized (e.g., H100-class GPU)
 training_optimized:
-  name: "Training-GPU-like"
+  name: "Training-GPU (H100-class)"
   kind: training_opt
-  description: "High peak FLOPs, HBM, optimized for large batches"
+  description: "High peak FLOPs, high-capacity HBM, optimized for large batches"
 
-  peak_flops_tflops: 300.0      # BF16/FP16
-  mem_bandwidth_gbs: 1550.0
+  peak_flops_tflops: 989.0      # BF16 Tensor Cores (dense)
+  mem_bandwidth_gbs: 3350.0     # ~3.35 TB/s HBM3
 
   # Parallelism support (0–1 capability score)
   data_parallel_friendly: 0.9
@@ -17,42 +17,42 @@ training_optimized:
   autoregressive_friendly: 0.4
 
   # Design notes for report
-  datapath: "Wide matrix units, fused GEMM+activation"
-  memory_hierarchy: "HBM2e, high bandwidth"
-  interconnect: "NVLink-style, high-radix"
+  datapath: "Deep matrix-multiply units, wide SIMD"
+  memory_hierarchy: "High capacity HBM3, optimized for coarse-grained access"
+  interconnect: "High-radix NVLink (900 GB/s)"
 
-# Inference-optimized (e.g., specialized inference accelerator)
+# Inference-optimized (e.g., Specialized Inference chip like Groq or custom ASIC)
 inference_optimized:
-  name: "Inference-Accel-like"
+  name: "Inference-ASIC (SRAM-heavy)"
   kind: inference_opt
-  description: "KV-cache aware, high memory bandwidth, INT4/INT8"
+  description: "Streaming architecture, massive on-chip SRAM, INT8/INT4"
 
-  peak_flops_tflops: 150.0      # Lower FLOPs, better for low-precision
-  mem_bandwidth_gbs: 2200.0     # Emphasis on bandwidth
+  peak_flops_tflops: 400.0      # Specialized INT8 units
+  mem_bandwidth_gbs: 15000.0    # Massive on-chip SRAM bandwidth (e.g. 15 TB/s)
 
-  data_parallel_friendly: 0.4
-  tensor_parallel_friendly: 0.5
-  pipeline_parallel_friendly: 0.6
-  autoregressive_friendly: 0.9
+  data_parallel_friendly: 0.2
+  tensor_parallel_friendly: 0.6
+  pipeline_parallel_friendly: 0.8
+  autoregressive_friendly: 1.0  # Perfect for batch=1 streaming
 
-  datapath: "Mixed-precision units, KV-cache optimized"
-  memory_hierarchy: "Large on-chip cache for weights/KV"
-  interconnect: "Scaled for concurrent streams"
+  datapath: "Streaming deterministic tensor ALUs, INT8/INT4 optimized"
+  memory_hierarchy: "No external DRAM for weights, huge distributed SRAM"
+  interconnect: "On-chip deterministic routing"
 
-# Unified (compromise design)
+# Unified (compromise design, e.g., general-purpose GPU)
 unified:
-  name: "Unified-Compromise"
+  name: "Unified-GPU (L40S-class)"
   kind: unified
-  description: "Balanced design, inherent tradeoffs"
+  description: "Balanced design, GDDR6 instead of HBM, moderate cost"
 
-  peak_flops_tflops: 220.0
-  mem_bandwidth_gbs: 1700.0
+  peak_flops_tflops: 733.0      # INT8
+  mem_bandwidth_gbs: 864.0      # GDDR6a
 
   data_parallel_friendly: 0.7
-  tensor_parallel_friendly: 0.7
+  tensor_parallel_friendly: 0.6
   pipeline_parallel_friendly: 0.7
-  autoregressive_friendly: 0.7
+  autoregressive_friendly: 0.6
 
-  datapath: "General-purpose matrix units"
-  memory_hierarchy: "Moderate HBM + cache"
-  interconnect: "Generic high-bandwidth"
+  datapath: "General-purpose tensor cores (FP16/INT8)"
+  memory_hierarchy: "Large L2 cache (128MB) + GDDR6"
+  interconnect: "PCIe Gen4 (64 GB/s)"
