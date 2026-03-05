@@ -34,7 +34,7 @@ lead to fundamentally different optimal architectures.
 git clone https://github.com/YOUR_USERNAME/training-vs-inference-arch.git
 cd training-vs-inference-arch
 
-# Create virtual environment (recommended)
+# Create virtual environment 
 python3 -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 
@@ -44,10 +44,10 @@ pip install -r requirements.txt
 # Run full experiment suite
 python scripts/run_experiments.py --config config/experiments.yaml
 
-# Run workload characterization (Goal 1)
+# Run workload characterization 
 python -m src.analysis.workload_characterization
 
-# Run architecture evaluation (Goal 2)
+# Run architecture evaluation 
 python -m src.analysis.architecture_evaluation
 ```
 
