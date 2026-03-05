@@ -1,9 +1,10 @@
 # Training-Time vs. Inference-Time Architecture Analysis
 
-**CECS 530 – Advanced Computer Architecture **  
+CECS 530 – Advanced Computer Architecture  
 
 This repository implements an **analytical comparison framework** and **architecture-level performance model** to systematically compare training-time and inference-time architectures for large language models.
 
+implemented by: Karthik Kovi, Mohit Krishna Emani, Abishek Mannam
 ---
 
 ## Project Overview
@@ -15,8 +16,7 @@ Modern AI systems often assume that fast training hardware implies fast inferenc
 - **Numerical precision** (FP32/BF16 training vs INT8/INT4 inference)
 - **Control flow** (static graphs vs dynamic batching)
 - **Latency vs. throughput objectives**
-
-…lead to fundamentally different optimal architectures.
+lead to fundamentally different optimal architectures.
 
 ---
 
