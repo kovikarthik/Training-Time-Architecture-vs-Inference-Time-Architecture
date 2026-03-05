@@ -105,7 +105,6 @@ class EvaluationResult:
     roofline_mem_bound_toks_per_s: float
     bottleneck: Literal["compute", "memory"]
     
-    # New metrics for Phase 4
     energy_per_token_mj: float
     edp_uj_s: float
     cost_per_million_tokens_usd: float
@@ -146,9 +145,7 @@ def roofline_throughput(workload: Workload, arch: Architecture) -> EvaluationRes
         bottleneck = "memory"
         actual_toks_per_s = mem_bound_toks_per_s
 
-    # Phase 4 Metrics: Energy and Cost
-    # Assuming baseline 40% power + up to 60% based on utilization
-    # Since we are assuming roofline limits, utilization of wildcard resource is 1.0
+    # Assume 40% static power and up to 60% dynamic based on util
     utilization = 1.0 # simplified model
     power_watts = arch.tdp_watts * (0.4 + 0.6 * utilization)
     
@@ -206,12 +203,7 @@ def pretty_print_result(result: EvaluationResult) -> None:
 
 
 def example_scenarios() -> None:
-    """
-    Example characterization for a modern Llama 3 8B-class model:
-      - Training: data-parallel, large batch, gradients + activations
-      - Inference: single-stream autoregressive with KV cache
-    """
-
+    # Llama 3 8B model configuration
     llama3_8b_arch = ModelArchitecture(
         hidden_size=4096,
         intermediate_size=14336,

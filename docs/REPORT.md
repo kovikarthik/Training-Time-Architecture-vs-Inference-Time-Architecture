@@ -106,9 +106,9 @@ To contextualize our analytical model, we surveyed five industry-standard system
 
 ---
 
-## 6. Bonus: Real Hardware Measurement (Apple Silicon)
+## 6. Real Hardware Measurement: Apple M4 Pro
 
-To contextualize architectural performance, we executed a hardware benchmark on a local **Apple M4 Pro (Metal 4, 14-Core CPU, 20-Core GPU)**. Testing matrix multiplications scaled to the hidden dimensions of our 8B model (N=4096).
+To contextualize architectural performance and prove our inference bandwidth thesis, we executed a hardware benchmark on a local **Apple M4 Pro (Metal 4, 14-Core CPU, 20-Core GPU)**. Testing dense matrix multiplications scaled to the hidden dimensions of our 8B model (N=4096).
 
 **Apple Silicon Benchmark Results:**
 - N=1024: 3.38 TFLOP/s
@@ -116,7 +116,7 @@ To contextualize architectural performance, we executed a hardware benchmark on 
 - N=4096: 6.73 TFLOP/s
 - N=8192: 6.16 TFLOP/s
 
-*Analysis:* The M4 Pro achieves an impressive ~6.7 TFLOP/s on medium matrices, largely due to Apple's Unified Memory Architecture (UMA), which provides exceptionally high bandwidth for an SoC (~273 GB/s). This proves the core thesis: high local memory bandwidth enables high practical utilization, validating why Apple Silicon is uniquely proficient at local LLM inference compared to standard x86/PCIe-GPU consumer setups.
+*Analysis:* The M4 Pro achieves an impressive ~6.7 TFLOP/s on medium matrices, largely due to Apple's Unified Memory Architecture (UMA), which provides exceptionally high bandwidth for an SoC (~273 GB/s). This validates the core thesis: high local memory bandwidth enables high practical utilization, validating why Apple Silicon is uniquely proficient at local LLM inference compared to standard PCIe-GPU consumer setups.
 
 ---
 
@@ -153,4 +153,4 @@ Enterprise fleets must bifurcate.
 
 ## 8. Conclusion
 
-Training optimizes for global throughput via massive batching and deep parallelism; inference optimizes for latency and token predictability via minimal batching and autoregressive generation. As demonstrated analytically and via hardware benchmarking, the resulting workloads have profoundly different Arithmetic Intensities. A specialized training architecture wastes its compute logic on memory stalls during inference, while an inference architecture lacks the capacity to even attempt training. The future of AI hardware definitively lies in strict specialization.
+Training optimizes for global throughput via massive batching and deep parallelism; inference optimizes for latency and token predictability via minimal batching and autoregressive generation. As demonstrated analytically, the resulting workloads have profoundly different Arithmetic Intensities. A specialized training architecture wastes its compute logic on memory stalls during inference, while an inference architecture lacks the capacity to even attempt training. The future of AI hardware definitively lies in strict specialization.

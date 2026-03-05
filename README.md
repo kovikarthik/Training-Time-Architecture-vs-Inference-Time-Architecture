@@ -76,7 +76,7 @@ python -m src.analysis.architecture_evaluation
 │       └── inference_metrics.py
 ├── scripts/
 │   ├── run_experiments.py     # Main experiment runner
-│   └── benchmark_apple_silicon.py  
+│   └── benchmark_apple_silicon.py  # Apple Silicon M4 Hardware test
 ├── docs/
 │   └── REPORT.md              # Technical report
 ├── requirements.txt
@@ -108,8 +108,6 @@ python -m src.analysis.architecture_evaluation
 
 ### 4. Unified Architecture 
 
-- Explains compromises and quantifies efficiency loss
-- **Deliverable**: Efficiency loss analysis
 
 ### 5. Cost & Deployment 
 
