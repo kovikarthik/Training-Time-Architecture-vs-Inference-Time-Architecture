@@ -1,9 +1,8 @@
 # Training-Time vs. Inference-Time Architecture Analysis
 
-**CECS 530 – Advanced Computer Architecture I**  
-*Project 8: Why One Accelerator Cannot Efficiently Do Both*
+**CECS 530 – Advanced Computer Architecture **  
 
-This repository implements an **analytical comparison framework** and **architecture-level performance model** to systematically compare training-time and inference-time architectures for large language models (LLMs).
+This repository implements an **analytical comparison framework** and **architecture-level performance model** to systematically compare training-time and inference-time architectures for large language models.
 
 ---
 
@@ -23,7 +22,7 @@ Modern AI systems often assume that fast training hardware implies fast inferenc
 
 ## Requirements
 
-- Python 3.9+
+- Python
 - (Optional) PyTorch + MPS for Apple Silicon benchmarks
 
 ---
@@ -70,14 +69,14 @@ python -m src.analysis.architecture_evaluation
 │   │   ├── models.py         # Architecture dataclass
 │   │   └── roofline.py       # Roofline performance model
 │   ├── analysis/              # Analysis modules
-│   │   ├── workload_characterization.py   # Goal 1
-│   │   └── architecture_evaluation.py     # Goal 2
+│   │   ├── workload_characterization.py   
+│   │   └── architecture_evaluation.py     
 │   └── metrics/               # Evaluation metrics
 │       ├── training_metrics.py
 │       └── inference_metrics.py
 ├── scripts/
 │   ├── run_experiments.py     # Main experiment runner
-│   └── benchmark_apple_silicon.py  # Bonus: real hardware measurement (M4)
+│   └── benchmark_apple_silicon.py  
 ├── docs/
 │   └── REPORT.md              # Technical report
 ├── requirements.txt
@@ -88,31 +87,31 @@ python -m src.analysis.architecture_evaluation
 
 ## Implementation Highlights
 
-### 1. Workload Characterization (Goal 1)
+### 1. Workload Characterization 
 
 - **Operation mix**: Matrix multiplies, attention, layer-norm for training vs. inference
 - **Arithmetic intensity**: FLOPs/byte for roofline classification
 - **Memory access patterns**: Activation lifetimes, weight reuse, KV-cache (inference), gradient storage (training)
 - **Deliverable**: Roofline-style comparison, bottleneck identification
 
-### 2. Architecture Evaluation (Goal 2)
+### 2. Architecture Evaluation 
 
 - Evaluates training-optimized and inference-optimized architectures against both workloads
 - Explains where each excels and where it fails
 - **Deliverable**: Architecture critique, mismatch analysis
 
-### 3. Specialized Architecture Designs (Goal 3)
+### 3. Specialized Architecture Designs
 
 - **Training-optimized**: Datapath, memory hierarchy, interconnect, scheduling model
 - **Inference-optimized**: KV-cache aware, low-precision support, dynamic batching
 - **Deliverable**: Design rationale, parameterization
 
-### 4. Unified Architecture (Optional, Bonus)
+### 4. Unified Architecture 
 
 - Explains compromises and quantifies efficiency loss
 - **Deliverable**: Efficiency loss analysis
 
-### 5. Cost & Deployment (Goal 5)
+### 5. Cost & Deployment 
 
 - Hardware utilization analysis
 - Energy per token vs. per step
@@ -138,19 +137,8 @@ All experiments are parameterized via YAML configs. To reproduce:
 python scripts/run_experiments.py --config config/experiments.yaml --output results/
 ```
 
-Results are written to `results/` with timestamps.
-
 ---
 
-## Apple Silicon Support (Bonus)
-
-For M4 Pro / Metal 4 systems, run optional real hardware benchmarks:
-
-```bash
-python scripts/benchmark_apple_silicon.py
-```
-
----
 
 ## References
 
@@ -159,8 +147,4 @@ python scripts/benchmark_apple_silicon.py
 - [vLLM](https://github.com/vllm-project/vllm)
 - [llama.cpp](https://github.com/ggerganov/llama.cpp)
 
----
 
-## License
-
-Academic use only. CECS 530 – CSULB.
