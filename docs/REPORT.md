@@ -26,31 +26,29 @@ This project systematically compares training-time and inference-time architectu
 
 ### 2.1 Model Family
 
-We use a **Transformer-XXL** family (~7B parameters, sequence length 2048) as the reference model for both workloads.
+We use the **Llama 3 8B** model (~8.03B parameters) as the reference model for both workloads, utilizing its structural hyperparameters (Hidden Dim = 4096, Layers = 32, Sequence Length = 4096) to mathematically determine FLOPs and memory access.
 
 ### 2.2 Training Workload
 
-- **Operation mix**: Matrix multiplies (65%), attention (20%), layer-norm (5%), activations (5%), other (5%)
-- **Parallelism**: Data-parallel (16-way), tensor-parallel (8-way), pipeline (8 stages)
-- **Memory**: Activations, gradients, optimizer state; no KV-cache
-- **Precision**: BF16 compute, FP32 accumulation
+- **FLOPs per token**: ~48.18 × 10⁹ (6P approximation due to forward, backward, and optimizer passes).
+- **Parallelism**: Data-parallel (32-way), tensor-parallel (4-way), pipeline (4 stages) with an overarching global batch of 4096 tokens.
+- **Arithmetic Intensity**: An exceptionally high **1,103 ops/byte**, primarily because extreme batch sizes amortize the cost of loading parameters from memory. The workload is strictly **compute-bound**.
 
 ### 2.3 Inference Workload
 
-- **Operation mix**: Matrix multiplies (60%), attention (30%), layer-norm (5%), activations (3%), other (2%)
-- **Parallelism**: Limited (data-parallel 1, tensor 2, pipeline 2)
-- **Memory**: Weights, KV-cache reads/writes
-- **Precision**: INT8 compute, INT32 accumulation
+- **FLOPs per token**: ~16.06 × 10⁹ (2P approximation, no backward passes).
+- **Parallelism**: Limited (data-parallel 1, tensor 2, pipeline 1). Batches must remain extremely small (e.g., 16 tokens).
+- **Arithmetic Intensity**: A staggeringly low **20.85 ops/byte**. Because the weights must be entirely re-read for every generated token along with the growing KV-cache, the workload becomes completely **memory-bound**.
 
 ### 2.4 Roofline Comparison
 
-Run the framework to produce the comparison:
+Run the core framework to produce the analysis data:
 
 ```bash
 python scripts/run_experiments.py --config config/experiments.yaml --stdout
 ```
 
-See `results/*.json` for full outputs.
+See `results/*.json` for full outputs, which systematically prove the 53× gap in Arithmetic Intensity between the two regimes.
 
 ---
 
@@ -58,11 +56,11 @@ See `results/*.json` for full outputs.
 
 ### 3.1 Architectures
 
-| Architecture | Peak FLOPs (TFLOP/s) | Mem BW (GB/s) | Optimized For |
-|---------------|---------------------|---------------|---------------|
-| Training-GPU-like | 300 | 1550 | Large-batch training |
-| Inference-Accel-like | 150 | 2200 | Low-latency inference |
-| Unified-Compromise | 220 | 1700 | Balanced |
+| Architecture | Peak FLOPs (TFLOP/s) | Mem BW (GB/s) | TDP (W) | Cost | Optimized For |
+|---------------|---------------------|---------------|---------|------|---------------|
+| Training-GPU (H100) | 989 | 3,350 | 700 | $30K | Large-batch training |
+| Inference-ASIC | 400 | 15,000 | 75 | $3K | Low-latency inference |
+| Unified (L40S) | 733 | 864 | 350 | $10K | Compromise |
 
 ### 3.2 Mismatch Analysis
 
@@ -73,31 +71,10 @@ See `results/*.json` for full outputs.
 
 ## 4. Specialized Architecture Designs (Goal 3)
 
-### 4.1 Training-Optimized
-
-- **Datapath**: Wide matrix units, fused GEMM+activation
-- **Memory**: HBM2e, high bandwidth
-- **Interconnect**: NVLink-style
-- **Scheduling**: Static graphs, large batches
-
-### 4.2 Inference-Optimized
-
-- **Datapath**: Mixed-precision (INT8/INT4), KV-cache optimized
-- **Memory**: Large on-chip cache for weights/KV
-- **Interconnect**: Scaled for concurrent streams
-- **Scheduling**: Dynamic batching, token-level
-
----
-
-## 5. Cost and Deployment (Goal 5)
-
-- **Training**: Throughput (tokens/sec), scaling efficiency
-- **Inference**: Token latency, energy per token, tail latency
-- **Deployment**: Separate training cluster + inference fleet recommended
+A Training-GPU must behave like a supercomputer node, whereas an Inference-ASIC must behave like a low-latency network switch.
 
 ### 4.1 Training-Optimized Architecture
 
-A training accelerator must behave like a supercomputer node:
 - **Datapath:** Deep, dense matrix-multiply units (e.g., Tensor Cores) heavily optimized for BF16 instruction fusion (GEMM + Activation).
 - **Memory Hierarchy:** High-capacity HBM3/4 is mandatory. On-chip SRAM is merely a staging ground to feed the massive matrix units.
 - **Interconnect:** High-radix NVLink-style fabrics (900+ GB/s) mapping directly to the 3D topology of Data/Tensor/Pipeline parallelism.
@@ -105,7 +82,6 @@ A training accelerator must behave like a supercomputer node:
 
 ### 4.2 Inference-Optimized Architecture
 
-An inference accelerator must behave like a low-latency network switch:
 - **Datapath:** Mixed-precision processing (INT8/INT4), prioritizing vector-matrix math over giant dense matrix-matrix math. KV-cache lookup optimizations are critical.
 - **Memory Hierarchy:** Replace HBM with massive distributed on-chip SRAM. Moving weights from SRAM to execution units takes picojoules compared to nanojoules from HBM.
 - **Interconnect:** Concurrent stream routing across multiple chips via deterministic interconnects to beat the single-chip memory capacity limit without incurring PCIe/NVLink switch latency.
@@ -113,7 +89,24 @@ An inference accelerator must behave like a low-latency network switch:
 
 ---
 
-## 5. Bonus: Real Hardware Measurement (Apple Silicon)
+## 5. Related Research: Reference Implementations
+
+To contextualize our analytical model, we surveyed five industry-standard systems representing the state-of-the-art in both training and inference (as requested in Project 8).
+
+### 5.1 Training Systems
+1. **Megatron-LM**: Addresses the memory limits of single GPUs by implementing intra-layer tensor parallelism. By splitting weight matrices across GPUs and using high-bandwidth NVLink interconnects, it achieved 76% scaling efficiency and sustained 15.1 PFLOPS.
+2. **DeepSpeed (ZeRO)**: Overcomes data-parallelism memory bloat by partitioning optimizer states, gradients, and weights across GPUs. ZeRO-3 provides linear memory savings at the cost of 1.5× higher communication volume, trading interconnect bandwidth for capacity.
+
+### 5.2 Inference Systems
+3. **vLLM (PagedAttention)**: Solves the dynamic KV-cache memory fragmentation problem during inference. By adopting OS-like virtual memory paging for KV-caches, it eliminates 60–80% of memory waste and delivers 2–4× higher serving throughput.
+4. **llama.cpp**: Demonstrates that inference is fundamentally memory-bound. By aggressively quantizing weights to INT4 (a 4× reduction in required memory bandwidth) using a pure C/C++ backend, it enables LLMs to run interactively on consumer hardware with <1% perplexity loss.
+
+### 5.3 Compiler Infrastructure
+5. **TVM**: Provides an end-to-end optimizing compiler that automatically targets diverse hardware using a learned cost model. While it maximizes the utilization of existing hardware, it cannot break the physical Roofline ceilings dictated by the underlying architecture.
+
+---
+
+## 6. Bonus: Real Hardware Measurement (Apple Silicon)
 
 To contextualize architectural performance, we executed a hardware benchmark on a local **Apple M4 Pro (Metal 4, 14-Core CPU, 20-Core GPU)**. Testing matrix multiplications scaled to the hidden dimensions of our 8B model (N=4096).
 
@@ -127,11 +120,11 @@ To contextualize architectural performance, we executed a hardware benchmark on 
 
 ---
 
-## 6. Cost and Deployment Implications (Goal 5)
+## 7. Cost and Deployment Implications (Goal 5)
 
 Using our parameterized analytical framework, we modeled the 3-year Total Cost of Ownership (TCO) and Energy-Delay Product (EDP) for a fleet running the Llama 3 8B model. 
 
-### 6.1 Energy-Delay Product (EDP)
+### 7.1 Energy-Delay Product (EDP)
 EDP perfectly captures the balance between latency and power consumption. Lower is better.
 
 | Architecture | Workload | Energy/Token (mJ) | EDP (µJ·s) | Efficiency vs Baseline |
@@ -140,7 +133,7 @@ EDP perfectly captures the balance between latency and power consumption. Lower 
 | Unified-GPU (L40S) | Inference | 312.08 | 278.27 | 7.5x Worse |
 | Inference-ASIC | Inference | 3.85 | 0.20 | **185x Better** |
 
-### 6.2 3-Year Total Cost of Ownership
+### 7.2 3-Year Total Cost of Ownership
 Assuming a $0.10/kWh electricity cost and max roofline utilization over 3 years:
 
 | Architecture | Target | Cost per 1M Tokens | Impact |
@@ -158,6 +151,6 @@ Enterprise fleets must bifurcate.
 
 ---
 
-## 7. Conclusion
+## 8. Conclusion
 
 Training optimizes for global throughput via massive batching and deep parallelism; inference optimizes for latency and token predictability via minimal batching and autoregressive generation. As demonstrated analytically and via hardware benchmarking, the resulting workloads have profoundly different Arithmetic Intensities. A specialized training architecture wastes its compute logic on memory stalls during inference, while an inference architecture lacks the capacity to even attempt training. The future of AI hardware definitively lies in strict specialization.
